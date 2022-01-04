@@ -2,7 +2,9 @@
 title: "LINEAR REGRESSION AND DIAGNOSTICS IN R"
 author: "Bryan McLean"
 date: "January 2021; updated Jan. 2022"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 *Note: parts of this lab were taken from open-source web tutorials.*\
