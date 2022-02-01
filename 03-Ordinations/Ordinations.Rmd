@@ -1,0 +1,262 @@
+---
+title: "ORDINATIONS FOR COMMUNITY ECOLOGY IN R"
+author: "Sally Koerner and Bryan McLean"
+date: "March 2021; last updated Jan. 2022"
+output:
+  html_document:
+    theme: spacelab
+    toc: true
+    toc_float: true
+  pdf_document:
+    latex_engine: xelatex
+    theme: spacelab
+---
+
+## ORDINATIONS IN R
+
+### A bit of background...
+
+Understanding how species and communities respond to the environment is perhaps the central focus of ecology. Ecologists have long sought efficient ways to summarize large data sets comprised of many interdependent variables, typically either species or environmental variables, and to summarize the distribution of sample points in a low dimensional space where alternative explanations can be explored for the principal dimensions of this reduced space. In today’s lab we will work through two very common different types of ordinations: **(1) PCA**, **(2) NMDS**.
+
+Specifically, we will use a dataset of bird communities taken from research conducted in the Drift Creek Basin in the central Oregon Coast Range during 1990 (McGarigal and McComb, unpubl. data). Briefly, the full dataset includes 164 observations (rows/sites) of bird counts (63 species). The sites are directly associated with 48 compiled habitat (environment) variables.
+
+## PRINCIPAL COMPONENTS ANALYSIS
+
+We will use Principal Components Analysis (PCA) to reduce the distribution of sample points to 2 or 3 dimensions using **ordinations**. PCA is an eigenvector technique that attempts to explain as much variance as possible on each of an series of orthogonal (i.e., uncorrelated) vectors spanning the data space. It is used to transform highly multivariate data into a lower-dimensional space where axes of variation are orthogonal and organized in order of variation explained. *In practice*, PCA might be used on a set of **predictor variables** to transform dozens of (perhaps collinear) environmental variables into a lower-dimensional space. However, it could also be used to reduce a set of **response variables** (e.g., species phenotypic/functional traits) into a lower-dimensional form for input into a model.
+
+We will make use of the *prcomp()* function and *rda()* functions in R. RDA stands for “Redundancy Analysis”, which is a **constrained** verison of PCA in which the PCA axes are constrained to be maximally correlated with a set of one or more independent variables. Note that we can use *rda()* interchangeably to conduct a PCA by simply not including any constraining variables - this would be equivalent.
+
+Open R and change the current working directory to your local workspace. Make sure to install the vegan package and its dependencies from a nearby CRAN mirror first.
+
+```{r}
+library(vegan)
+```
+
+### Read the data
+
+Now we are ready to import the bird dataset. 
+
+```{r}
+birdhab <- read.csv("./data/birdhab.csv", header=TRUE)
+```
+
+Print the first few lines of this dataset to examine its structure. You should see a series of 'species' columns (birds species represented by 4-letter codes) and then a series of habitat/environmental variables (also abbreviated).
+
+```{r}
+head(birdhab)
+```
+
+Next, work to split the dataset into its two components - species variables and habitat variables. The habitat variables will be subjected to PCA and the bird community data will be subjected to NMDS.
+
+```{r}
+rip.bird <- subset(birdhab, select = AMGO:WWPE)
+head(rip.bird) #explore the data structure visually
+
+rip.hab <- subset(birdhab, select = VAREA:CONEDGE)
+head(rip.hab) #explore the data structure visually
+```
+
+### PCA of habitat variables
+
+The *prcomp()* function in R allows us to use a correlation or covariance matrix. Functionally, using a correlation matrix treats all variables the same (standardized to mean = 0 and std. deviation = 1). Even if all variables were measured on the same scale (e.g., percent cover), to prevent the dominant variables from determining the results, we probably want to use correlation. In *prcomp()*, this means specifying *scale = TRUE* in the function call. 
+
+```{r}
+rip.hab.pca <- prcomp(rip.hab, scale = TRUE) # scale=TRUE to use correlation matrix
+
+# Plot how much of the variance is explained by each PCA component
+plot (rip.hab.pca, npcs = 5) # npcs specifies how many axes to consider
+```
+
+Using the *plot()* function on a prcomp object plots what is called a **screeplot**. This is a plot of the percent variance in the raw habitat data that is explained by each PC axis. You can see that PC axis 1 explains ~10% of all the variation in our environmental data.
+
+We can view the samples scores as well. Each sample has a location in multidimensional ordination space (as well as its own scores on each principal component axis). To see these sample scores, which are stored in the component named ‘x’ in the list object output from the *prcomp()* function, simply type the following.
+
+```{r}
+# The first two axes are what is typically plotted in a PCA plot. 
+head(rip.hab.pca$x)
+```
+
+### Exploring PC space
+
+A **biplot** plots the scores PLUS the raw data variables to help visualize which variables contribute the most to the resulting (transformed) PC axes. Thus far, we have been using the *prcomp()* function to conduct the PCA. However, to make use of the extensive plotting functions in the vegan library, we will use the *rda()* function in the **vegan** library. The sample scores produced by *rda()* are scaled differently from those produced by *prcomp()*, but the sample relationships displayed in the graphs are the same, so the differences need not bother us. So, let’s generate the rda object from a PCA using the *rda()* function, as follows:
+
+```{r}
+rip.hab.rda <- rda(rip.hab, scale = TRUE)
+```
+
+The sample scores along axes (= PC’s) express the variances (eigenvalues) of the axes and the variables (e.g., species) are depicted as vectors emanating from the origin (i.e., the centroid of the sample points), where the directional vector indicates the direction of maximum linear change in that variable. The basic biplot can be generated using the *ordiplot()* function, as follows:
+
+```{r}
+ordiplot(rip.hab.rda, choices = c(1, 2), type = 'text', scaling = 2)
+```
+
+For highly congested plots, which is generally the case when the number of samples is quite large (say >100) and the number of variables is large (say >20), try instead using the *orditorp()* function. It works by first creating a plot frame using the *ordiplot()* function and then separately adding the sites and variables to the plot, but adopting some conventions to avoid congestion. 
+
+```{r}
+counts <- colSums(rip.hab) # compute 
+ordiplot(rip.hab.rda, choices = c(1, 2), type = 'none') # blank plot space
+orditorp(rip.hab.rda, display = 'sites', col = 'blue', pch = 19)
+orditorp(rip.hab.rda, display='species', priority = counts, col = 'red', pch = 19)
+```
+
+Ok, now this is cool! For really congested plots, we can use the identify() function to label individual points of interest, as follows:
+
+```{r}
+p <- ordiplot(rip.hab.rda, choices = c(1,2), type = 'points')
+identify(p, 'species') #for variables (species)
+# Notice that R is still running – at this point, click on the species that appear to be having the biggest impact. Click on as many as you want. Then press finish. Those points only will then be labeled. 
+```
+
+```{r}
+# Repeat, but this time for the sites:
+p <- ordiplot(rip.hab.rda, choices = c(1,2), type = 'points')
+identify(p, 'sites') #for samples (sites)
+```
+
+### Plotting groups in PC space
+
+The goal of many ordinations is to visualize complex multivariate data. Overlays can also be used to "group" related samples on ordination plots; e.g., from different strata, geographic areas, treatments, etc. Recall that in PCA the samples are assumed to be independent random samples of an underlying multivariate normal population. However, in practice, it is common for samples to be collected in a stratified manner, in which the samples are logically grouped. Overlays can be used to inspect the ordination plots with this group structure in mind. For example, in the birdhab dataset, the samples were collected from 10 different subbasins. We might be interested in knowing whether the ordination patterns revealed are being strongly driven by differences among subbasins or whether the underlying gradients of variation among samples is independent of subbasin membership.
+
+To depict groups of related samples, we have to have one or more appropriate grouping variables in the original dataset and get them labeled as **factors** in R. If the grouping variable is a character variable, then R automatically recognizes it as a factor. However, if the grouping variable is numeric, you must first coerce the variable to a factor before treating it as categorical variable.
+
+We will use the **SUB** variable for grouping (= sub-basin), which is categorical in two ways:
+
+```{r}
+cols = c(sample(colours(), 10)) # create a vector of 10 random colors
+
+p <- ordiplot(rip.hab.rda, choices = c(1, 2), display = 'sites')
+ordispider(p, groups = as.factor(birdhab$SUB), col = cols)
+
+p <- ordiplot(rip.hab.rda, choices = c(1, 2), display = 'sites')
+ordiellipse(p, groups = as.factor(birdhab$SUB), conf = 0.9, col = cols)
+```
+
+Which do you like better??
+
+### Tests of group differences (rank-based)
+
+Lastly, let’s test for significant differences between the subbasin habitats (SUB). ANOSIM is one way to do this - the test compares the ranks of distances among objects **among** different groups/treatments with ranks of distances between objects **within** groups/treatments. 
+
+ALL such tests require creating a dissimilarity matrix – remember there are tons of options for tests. For environmental data – frequently a Euclidean distance. If our data were the bird community data (more on that below), Bray Curtis distances would be best.
+
+```{r}
+dissim <- vegdist(rip.hab, method = "euclidian")
+head(dissim)
+```
+
+We will now use the *anosim()* function in the **vegan** library, followed by the *summary()* function:
+
+```{r}
+y.anosim <- anosim(dissim, birdhab$SUB) # argument 2 is the group IDs
+summary(y.anosim)
+```
+
+The most important information in the summary is the value of the ANOSIM test statistic, R, and the p-value derived from the Monte Carlo permutation test. Based on this information, can we reject the null hypothesis of no group differences?
+
+### Tests of group differences (regression-based)
+
+There are more regression-based tests of group/treatment differences as well. Next, run a PERMANOVA (permutational multivariate analysis of variance), which is a non-parametric test that uses multivariate ANOVA to test for differences among groups. Here we will use the *adonis()* function in the **vegan** library. The function requires a formula as input (plus the data of course). The right-hand side of the equation can consist of any suitable linear model, including nested and factorial designs, consisting of factors and/or continuous variables. 
+
+```{r}
+y.adonis <- adonis(rip.hab ~ SUB, data = birdhab, permutations = 1000, method = 'euclidian')
+y.adonis
+```
+
+The resulting object is a familar R model object containing several components, but the most important information is the ANOVA table showing sources of variation, degrees of freedom, sequential sums of squares, mean squares, F statistics, partial R-squared and P values. Based on this information, can we reject the null hypothesis of no differences in habitat across SUBBASINs?
+
+## NONMETRIC MULTIDIMENSIONAL SCALING
+
+Community ecologists have mostly abandoned reliance on PCA because the underlying linear model has proven too restrictive for community (i.e., samples-by-species) datasets. We will use Nonmetric Multidimensional Scaling (NMDS), to reduce the distribution of sample points to 2 or 3 dimensions, and plot the results in "ordinations” in the same data – but, this time focusing on the **bird** subset instead of the habitat subset. NMDS overcomes many of the problems faced by PCA, CA, and DCAs and is the method of choice amongst ecologists. We will use Kruskal's NMDS which attempts to minimize something called "stress". 
+
+The execution of NMDS is slightly different than PCA/CA/DCA. To begin, ideally we would like to have some a priori knowledge of the underlying dimensionality of the dataset. When you calculate the NMDS you can specify the number of dimensions you want (**k**). In contrast to MDS, however, the first 2 dimensions of a 3 dimensional NMDS are not the same as a 2 dimensional NMDS. Remember, it's trying to minimize stress, and it will take advantage of however many dimensions you give it, and it's not a geometric projection. If we assume a final dimensionality of 2, then we can call the metaMDS() function as follows:
+
+### NMDS of bird communities
+
+```{r}
+rip.bird.nmds <- metaMDS(rip.bird, distance = 'bray', k = 3, trymax = 50, autotransform = FALSE)
+rip.bird.nmds
+# How’s your stress?
+```
+
+NMDS produces sample scores which are the coordinates of the samples in the k-dimensional ordination space, and these are stored in a result object list in the component named ‘points’. To see the sample scores, type the following.
+
+```{r}
+head(rip.bird.nmds$points)
+```
+
+Similarly, species scores can be calculated as weighted averages of the samples, and they are stored in the component named ‘species’, accessed by typing the following.
+
+```{r}
+head(rip.bird.nmds$species)
+```
+
+### Plotting community ordinations
+
+Finally, lets graph the NMDS using similar functions as above.
+
+```{r}
+cols = c(sample(colours(), 10)) # create a vector of 10 random colors
+
+p <- ordiplot(rip.bird.nmds, choices = c(1, 2), display = 'sites')
+ordispider(p, groups = as.factor(birdhab$SUB), col = cols) 
+
+p <- ordiplot(rip.bird.nmds, choices = c(1, 2), display = 'sites')
+ordiellipse(p, groups = as.factor(birdhab$SUB), conf = 0.95, col = cols)
+
+# The ordihull() function is useful for producing familiar convex hulls.
+p <- ordiplot(rip.bird.nmds, choices = c(1, 2), display = 'sites')
+ordihull(p, groups = as.factor(birdhab$SUB), col = cols)
+```
+
+### Testing for community differences among treatments
+
+Lastly, let’s test for significant differences between the subbasins (SUB) in bird communities  - remember, we did this above for environmental data. We will run both the ANOSIM and PERMANOVA tests and view their results.
+
+```{r}
+dissim <- vegdist(rip.bird, method = "bray") # get the dissimilarity matrix
+y.anosim <- anosim(dissim, birdhab$SUB) # ANOSIM
+summary(y.anosim)
+```
+
+```{r}
+dissim <- vegdist(rip.bird, method = "bray") # get the same dissimilarity matrix
+y.adonis <- adonis(rip.bird ~ SUB, data = birdhab, permutations = 1000, method = 'bray') # PERMANOVA
+y.adonis
+```
+
+
+## THIS WEEK'S ASSIGNMENT
+
+At this point, you should be familiar with the basic syntax and workflow necessary to set up ordinations in R, both for environmental and community data. **Your assignment is to conduct a similar workflow for a dataset of wood turtle (Glyptemys insculpta) habitat use**. The data consist of habitat data for activity areas of 37 wood turtles (turtle=1) at a site in western Maine in 1998. Twenty-six random areas within the same watershed are also included (turtle=0). A number of habitat variables were measured in the field for both turtle and random areas.
+
+You can load the **turtle** dataset as follows.
+
+```{r}
+turtle <- read.csv("/Users/mclean/Box/UNCG_Teaching/Biostats_II/labs/BIO709_labs/6_Ordinations/data/byturtle.csv", header=TRUE)
+hist(turtle$turtle) # Visualize the distribution of presences (1) and absences (0)
+```
+\
+
+#### **DO THE FOLLOWING:**
+**1. Summarize all the habitats surveyed in the study by creating either a PCA or NMDS, and plot your ordination. This should be based on your knowledge of which is more appropriate for environmental (and not community) data.**\
+\
+**2. To aid in visualization of habitat differences, add identifiers around TWO groups of points: the TURTLE and RANDOM plots.** This is useful to begin asking whether wood turtles preferentially select habitats based on the measured environmental variables. This should contain:\
+    **a).** A biplot from the ordination\
+    **b).** Identifiers around each of the two groups, using ONE of these functions: *ordihull()*, *ordispider()*, *ordiellipse()*.\
+    **c).** A proper title\
+\
+**3. Separately, summarize the variation explained by your ordination in a screeplot.** This should contain:\
+    **a).** A barplot of the percent variance explained by the top 5 axes (i.e. a 'screeplot')\
+    **b).** A proper title\
+\
+**4. Conduct formal ANOSIM and PERMANOVA tests for differences in environmental properties between the TURTLE vs. RANDOM plots.**\
+    **a).** Refer to the section above on which dissimilarity matrix/measure you should choose for this test.\
+    **b).** Use the capture.output() function to save the full **PERMANOVA** SUMMARY as a .txt file. \
+\
+**5. Save all four files (biplot with groupings, screeplot, and model summaries) using the naming convention (e.g., lastname_lab1_plot1 or lastname_lab1_table1), and upload both files to Canvas**\
+\
+\
+\
+\
+\
+\
