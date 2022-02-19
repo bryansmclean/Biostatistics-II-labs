@@ -2,7 +2,14 @@
 title: "LINEAR REGRESSION AND DIAGNOSTICS IN R"
 author: "Bryan McLean"
 date: "January 2021; updated Jan. 2022"
-output: html_document
+output:
+  html_document:
+    theme: spacelab
+    toc: true
+    toc_float: true
+  pdf_document:
+    latex_engine: xelatex
+    theme: spacelab
 ---
 
 *Note: parts of this lab were taken from open-source web tutorials.*\
@@ -13,14 +20,14 @@ output: html_document
 
 The movie Moneyball (2011) focuses on the “quest for the secret of success in baseball”. It follows a low-budget team, the Oakland Athletics, who believed that underused statistics, such as a player’s ability to get on base, can predict ability to score runs better than typical statistics like home runs, RBIs (runs batted in), and batting average. Obtaining players who excelled in these underused statistics turned out to be much more affordable for the team.
 
-In this lab we’ll be looking at data from all 30 Major League Baseball teams and examining the linear relationship between runs scored in a season and a number of other player statistics. Our aim will be to summarize these relationships both graphically and numerically in order to find which variable, if any, helps us best predict a team’s runs scored in a season.\
+In this lab we’ll be looking at data from all 30 Major League Baseball teams and examining the linear relationship between runs scored in a season and a number of other player statistics. Our aim will be to summarize these relationships both graphically and numerically in order to find which variable, if any, helps us best predict a team’s runs scored in a season.
 
 ### Load the data into R
 
 ```{r}
-load("./data/mlb11.rdata")
 # This data set contains team-wide summaries for production statistics
 # There should be 30 teams and 11 statistics
+load("./data/mlb11.rdata")
 ```
 
 ### Examine the data
@@ -28,16 +35,25 @@ load("./data/mlb11.rdata")
 ```{r}
 # First, make sure the matrix was read into R in full:
 # (i.e., that it has the dimensions we expect)
-nrow(mlb11)  # number of teams
-ncol(mlb11) - length(which(colnames(mlb11) == 'team'))  # number of stats
+nrow(mlb11)  # print number of teams
+```
 
+```{r}
+ncol(mlb11) - length(which(colnames(mlb11) == 'team'))  # print number of stats
+```
+
+```{r}
 # There are several options for printing or summarizing data tables in R.
 # The head() function prints the first rows of a table
 head(mlb11)
+```
 
-# Alternatively, we can summarize across rows and columns (R prints only several row summaries by default)
+```{r}
+# Alternatively, we can summarize across rows and columns 
+# (Note: R prints only several row summaries by default)
 summary(mlb11)
 ```
+
 
 In addition to runs scored, there are seven traditionally used variables in the data set: at-bats, hits, home runs, batting average, strikeouts, stolen bases, and wins. There are also three newer variables: on-base percentage, slugging percentage, and on-base plus slugging.\
 
@@ -67,7 +83,7 @@ summary(m1)
 
 Let’s consider the model summary piece by piece. 
 
-**1)** **Call** The first item listed in the model sumary is the formula you called. This is very useful as a reminder of the model you actually ran. 
+**1)** **Call** The first item listed in the model summary is the formula you called. This is very useful as a reminder of the model you actually ran. 
 
 **2)** **Residuals** After the formula is the five-number summary of the residuals. This describes the distribution of leftover variation not accounted for by the model. We'll examine this in more detail later.
 
@@ -95,7 +111,7 @@ To assess whether any linear model is reliable, you should always check the foll
 **(2)** **constant variability**, or **homoscedasticity** (variance of Y is the same for any value of X) \
 **(3)** **normality** (distribution of Y is normal at any value of X) \
   
-We already have reason to think that (1) is true, as our model summary above confirms that number of at bats ("at_bats") is strongly predictive of number of runs ("runs") given the statisticall significant slope term. 
+We already have reason to think that (1) is true, as our model summary above confirms that number of at bats ("at_bats") is strongly predictive of number of runs ("runs") given the statistically significant slope term. 
 
 However, far from all of the variation in "runs" is explained by "at_bats" (check the R2 values above again). R's linear model object contains lots of other information about this residual variation (i.e., that variation not explained by at_bats), and exploring the structure of the residuals is the central part of model diagnostics.
 
@@ -109,9 +125,9 @@ attributes(m1)
 
 Prior to anything more detailed, it is often instructive to create a simple plot just to help visualize differences between the model predictions and the actual values (i.e., to visualize the RESIDUAL variation). To do this, we can make use of the "fitted_values" and "residuals" attributes of the model. 
 
-Also, we can make use of the handy abline() function to plot the least-squares (i.e., best-fit) line.
+Also, we can make use of the handy *abline()* function to plot the least-squares (i.e., best-fit) line.
 
-Im also going to plot some line segments that connect the actual and predicted (fitted) values using the segments() function, for visualization purposes.
+Im also going to plot some line segments that connect the actual and predicted (fitted) values using the *segments()* function, for visualization purposes.
 
 ```{r}
 plot(mlb11$at_bats, mlb11$runs)
@@ -175,17 +191,16 @@ At this point, you should be familiar with the syntax and workflow necessary to 
         b). scatterplot of the residuals vs. fitted values for the model (as above for hits)\
         c). histogram of the residuals (as above for hits)\
         d). Q-Q plot (as above for hits)\
-(hint: to set up this 4-panel plot, use the par() function prior to plotting and the mfrow() argument)\
+(hint: to set up this 4-panel plot, use the *par()* function prior to plotting and the *mfrow =* argument)\
 \
 **3. Create an output file for R's standard model object for your model**\
-(hint: make sure to use the summary() function as we did above, and use the capture.output() function to write this to a text (.txt) file. check that function's help page for more info.)\
+(hint: make sure to use the *summary()* function as we did above, and use the *capture.output()* function to write this to a text (.txt) file. check that function's help page for more info.)\
 \
-**4. Save both files (4-panel plot and model table) using the naming convention (e.g., lastname_lab1_plot1)**\
+**4. Save both files (4-panel plot and model table) using the naming convention (e.g., lastname_lab1_plot1 or lastname_lab1_table1)**\
 \
 **5. Upload both files to Canvas**\
 
 \
 \
 \
-rmarkdown::render('Linear-regression-and-diagnostics.Rmd')
 
