@@ -1,0 +1,195 @@
+---
+title: "GENERALIZED LINEAR MODELS IN R"
+author: "Bryan McLean"
+date: "February 2021; last updated Feb. 2022"
+output:
+  html_document:
+    theme: spacelab
+    toc: true
+    toc_float: true
+  pdf_document:
+    latex_engine: xelatex
+    theme: spacelab
+---
+
+## THE CASE FOR GLMs
+
+Remember from our lecture on generalized linear models (GLMs) that these tools provide a robust modeling alternative when we encounter non-normal distributions of the response variable. Transformations on non-normal data are possible in some scenarios, but other data require very complex transformations (negatively affecting our ability to interpret results) or cannot be transformed at all. The idea of GLM is to use a link function to “link” the distribution of the mean response (μ) so that the dependent variable (Y) is linear with respect to the linear predictors (independent variables, or X). If we know the data distribution under which our data have been generated, GLMs provide a very robust approach to linear modeling that can encompass a wide range of data types.\
+
+In this lab, we will examine how to implement GLMs following two common distribution families (binomial, poisson). The goal is to gain a functional understanding of how to implement these models, view the model objects (which are similar to output of lm() in some ways, but differ in others), retreive the model fits, and perform some model diagnostics.\
+
+## SHOULD I USE A GLM?
+
+For this lab portion, we will use a data set describing whether a household moved to a safe well after being noticed about the unsafty of their wells. Other background information about the household are also included. This is a slightly modified version of the original data set that was released as part of the replication data for *Data Analysis Using Regression and Multilevel/Hierarchical Models* (Gelman and Hill 2007).
+
+**The data set contains the following variables**:\
+
+**switch**: Whether the household with unsafe wells moved after being encouraged to switch to nearby private or community wells or to new wells of their own construction.\
+**arsenic**: Natural arsenic concentration in well water in ppm.\
+**dist**: The distance for a certain house hold to the closest known safe well in 100 meter\
+**assoc**: Whether any members of the household are active in community organizations.\
+**educ**: The education level of the head of household.\
+
+### Read the data
+
+```{r}
+wells <- read.delim("./data/wells.txt", sep = ' ') # reading in space-delimited data
+head(wells)
+```
+
+The **response** data in this dataset is whether households moved (**switch**), and we wish to model this behavior in response to multiple predictor variables. Household switching is a **binary** variable (yes/no, or 1/0). However, when observed across a population, these data are more precisely referred to as **binomial** because they have been observed from 𝑛 Bernoulli trials, and thus consist of non-negative integers following a binomial distribution. You can confirm the distribution of the **switch** variable by plotting a histogram of the observed values, or by compiling the values into a table.\
+
+```{r}
+hist(wells$switch)
+table(wells$switch)
+```
+
+### Plotting a matrix
+
+A more elegant way to view the distribution of multivariate data sets is the familiar *plot()* function but applied to an entire matrix in R. This is useful for viewing data distributions as well as correlations among variables. We won't worry about the correlations for now - only the data distributions. From this series of plots, it should be obvious that the dataset contains a mix of predictor types, including multiple categorical (some binary, some not) and continuous variables.
+
+```{r}
+plot(wells, col = "dodgerblue")
+```
+
+## BINOMIAL REGRESSION FOR 0/1 DATA
+
+Your first task is to answer whether a household switch can be predicted. First, build a logistic model with R's glm() function as shown below to explain how arsenic concentration (the most salient variable) affects whether household moves. Since the dependent variable is a binary choice (yes/no), we will assume it follows a binomial distribution. The link function that is most commonly used with binomial distribution is the **logit** function.\
+
+```{r}
+# Set up the model using the glm() function
+m1 <- glm(switch ~ arsenic, wells, family = binomial(link = "logit"))
+summary(m1) # Print summary and note similarity with output of e.g. lm()...
+```
+
+From this model object, it should be obvious that arsenic is a statistically significant predictor of house switching (no big surprise, *assuming* that households have the ability to move). Also, for this model (once transformed), it is clear that even when the arsenic concentration is 0, there is still a probability for a household to move (see the intercept term).
+
+### Comparison with lm()
+
+But, what if we had no knowledge of GLMs (and their ability to link into a linear relationship), or what if we ignored the fact that our underlying data distribution was binomial, and thus had simply used the *lm()* function to construct a general linear model? After all, absent any major issues with the formula or data type, its not too hard to get a model to *run* in R. How much worse would that model have been??
+
+```{r}
+# Set up the model using the standard lm() function
+m0 <- lm(switch ~ arsenic, data = wells)
+# or, for fun, this is an identical call to above:
+m0 <- glm(switch ~ arsenic, data = wells, family = gaussian(link = "identity"))
+summary(m0) 
+```
+
+You can see that the model is still statistically significant, as are both the intercept and slope terms. However, a quick comparison of the models using Akaike's information criterion (AIC) demonstrates that the fit is substantially worse (AIC score +200 or so). We will return to model comparison later this semester. \
+
+```{r}
+AIC(m1, m0) # lower AIC scores are always better!
+```
+
+### Predictions from GLM objects
+
+In many cases, we would like to plot the actual model fit. To do this for complex models, R requires two things: the **model** itself and a **vector of X values** to predict from. The code below demonstrates how to use the R function *predict()* to accomplish this for two purposes: plotting the linearized (linked) function itself, as well as the untransformed response curve.
+
+### Linearized prediction
+
+```{r}
+# First, make a new vector of fake X values (here, arsenic) over which to apply the model. Usually, you will want to create a vector that spans at least the entire range of the empirical data.
+
+fake.arsenic <- seq(min(wells$arsenic), max(wells$arsenic), by = 0.1) # New X
+fake.switches <- predict(m1, list(arsenic = fake.arsenic), type = 'link') # Predicted Y
+plot(wells$arsenic, wells$switch, xlim = c(0,10))
+points(fake.arsenic, fake.switches, col = 'red', type = 'l')
+```
+
+### Response prediction
+
+Again, the predicted line above for m1 represents the log odds ratio, which is the linearized (linked) version of the actual non-linear relationship. If we want to view the raw (sigmoidal-shaped) response curve, which is actually the probability, change the type of prediction to *response*.
+
+```{r}
+fake.switches <- predict(m1, list(arsenic = fake.arsenic), type = 'response')
+plot(wells$arsenic, wells$switch, xlim = c(0,10))
+points(fake.arsenic, fake.switches, col = 'red', type = 'l')
+```
+
+## POISSON REGRESSION FOR COUNT DATA
+
+For this portion of the lab, we will use a data set contained in the **faraway** R package that describes plant species diversity on the Galapagos Islands. The data set contains species counts on different islands, as well as other predictor variables useful for analyzing the data in the context of island biogeography theory.\
+
+The data set contains the following variables:\
+
+**species** the number of plant species found on the island\
+**endemics** the number of endemic plant species\
+**area** the area of the island (km2)\
+**elevation** the highest elevation of the island (m)\
+**nearest** the distance from the nearest island (km)\
+**scruz** the distance from Santa Cruz island (km)\
+**adjacent** the area of the adjacent island (km2)\
+
+```{r}
+gala <- read.delim("./data/gala.txt", sep = ' ')
+head(gala)
+plot(gala, col = "seagreen3")
+```
+
+Counts such as species inventories often follow a Poisson distribution, with larger numbers of smaller counts and a few counts containing many species. Lets focus in on the species counts to understand if this might be true.\
+
+```{r}
+hist(gala$Species, breaks = 15, col = "seagreen3") # Possibly Poisson
+```
+
+Your first task is to answer whether numbers of plant species on each island can be predicted based on area and elevational range. Based on island biogeography theory, we might predict that larger and more topographically variable islands should contain higher habitat diversity, and thus be able to support more species. Build a poisson model with R's glm() function as shown below to answer this question. Note that the link function that is most commonly used with poisson distribution is the **log** function.\
+
+```{r}
+# Set up the model using the glm() function
+m2 <- glm(Species ~ Area * Elevation, gala, family = poisson(link = "log"))
+summary(m2)
+```
+
+From this model object, it should be obvious that there is a strong relationship between species diversity and the area and elevation of the island. To dig into this in more detail, what is the direction of both relationships? (see the Estimate of slopes in the table). Island Biogeography Theory predicts that both should be positive. Also, note from the table that there is a very strong interaction *between* area and elevation. Think back to your knowledge of interaction terms. What does this mean for our study system??\
+
+In effect, this model tells us that there is are strong positive relationships between species diversity (X) and both island area and elevational range individually. Further, the strongly negative interaction term suggests that on larger and larger islands, the effect of elevational range for species diversity gets smaller, and *vice versa*. This *could* be because very large islands still just have one or a few mountain ranges, which can be inhabited by the same montane plant species.\
+\
+\
+
+## THIS WEEK'S ASSIGNMENT
+
+At this point, you should be familiar with the syntax and workflow necessary to set up generalized linear models in R using some of the more common distribution families and their associated link functions.\
+
+Your assignment is to re-visit the Galapagos dataset and construct an expanded poisson regression that also asks about how the **1) distance from other islands** and **2) size of the closest island** impact plant species diversity. In doing so, you will also perform a more in-depth examination of poisson model fit, plot the predicted curve, and assess if model violations exist.
+
+### **DO THE FOLLOWING:**
+**1. Construct a poisson GLM relating species diversity to four continuous variables (Area, Elevation, Nearest, Adjacent) AS WELL AS two interaction variables (Area * Elevation, Nearest * Adjacent)**.\
+-Make sure that you don't include ALL possible interactions, only the two interactions above. If more appear in your model output, re-visit the model formula and re-write it.\
+-To aid your interpretation of the final model, remember that interactions model the change in a **response** depending on values of **two** variables. For the Nearest * Adjacent interaction, you are effectively modeling whether there is a change in Species diversity on an island, considering the distance **and** area of the closest island.\
+
+**a).** Use the *capture.output()* function to save the full model SUMMARY as a .txt file.\
+\
+**2. Plot your possion model fit on top of the empirical data.**\
+- Specifically, plot the bivariate relationship between Species (Y) and the *strongest predictor* from your model above (X). The strongest predictor is the one with the largest slope Estimate.\ 
+- To do this, remember that the *predict()* function requires a data frame with identical variables as the input data frame. So, you will need to set up a data frame that has four columns named exactly as they are in **gala**. They can be any length (10, 10,000), but must all be that same length. \
+- **For the strongest predictor**, generate a vector of values that span the range of the original data.\
+- **For the other 3 predictors**, generate vectors where each value is the *mean* of the original data.\
+The plot should contain:\
+\
+  **a).** A bivariate plot of the raw data (species and strongest predictor)\
+  **b).** A model prediction as a line (species vs. strongest predictor)\
+  **c).** A proper title\
+  **d).** Axis titles that include variable names\
+\
+**3. Examine model fit by plotting residuals vs. fitted values for your poisson model**.\
+- You can use EITHER the *plot()* function to produce a fancy plot, or just extract the residual and fitted values from the model object and plot them yourself. Are there any problems with model fit?? Which islands seem to be outliers??\
+The plot should contain:\
+\
+  **a).** A bivariate plot\
+  **b).** A proper title\
+  **c).** Axis titles that include the variable names\
+\
+**4. Install the AER package and run a formal test for overdispersion.**\
+- Overdispersion describes the condition of count data that are more skewed than predicted under a typical poisson process. Based on task 3) and the histogram of Species we created above, you should be seeing a lack of goodness-of-fit  However, we can test for overdispersion more specifically.\
+- Once installed, the *dispersiontest()* function in the AER package is specifically designed to test for overdispersion in poisson models.\
+
+**a).** Use the *capture.output()* function to save the full model SUMMARY as a .txt file.\
+\
+**5.** Save all four files (2 model/test summaries, 2 plots) using the naming convention (e.g., lastname_lab1_plot1 or lastname_lab1_table1), and upload to Canvas.**\
+\
+\
+\
+\
+\
+\
